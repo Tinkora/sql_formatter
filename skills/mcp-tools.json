@@ -1,0 +1,104 @@
+{
+  "name": "sql_formatter",
+  "version": "0.1.0",
+  "description": "Browser-native SQL formatter and minifier. Format, minify, and validate SQL with configurable options (dialect, indent, keyword case, comma placement). All processing in WASM — no server upload.",
+  "tools": [
+    {
+      "name": "format_sql",
+      "description": "Format SQL with configurable options including dialect, indent size, keyword case, and comma placement.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "description": "The SQL text to format."
+          },
+          "dialect": {
+            "type": "string",
+            "enum": ["generic", "postgresql", "mysql", "sqlite"],
+            "default": "generic",
+            "description": "SQL dialect for keyword recognition."
+          },
+          "indent_size": {
+            "type": "integer",
+            "enum": [2, 4, 8],
+            "default": 4,
+            "description": "Number of spaces per indent level."
+          },
+          "keyword_case": {
+            "type": "string",
+            "enum": ["upper", "lower", "capitalize"],
+            "default": "upper",
+            "description": "Keyword casing style."
+          },
+          "comma_before": {
+            "type": "boolean",
+            "default": false,
+            "description": "Place commas before items (leading style) when true."
+          },
+          "lines_between_statements": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 5,
+            "default": 1,
+            "description": "Number of blank lines between semicolon-separated statements."
+          },
+          "max_line_width": {
+            "type": "integer",
+            "minimum": 40,
+            "maximum": 500,
+            "default": 120,
+            "description": "Target maximum line width (reserved for future line-wrapping)."
+          }
+        },
+        "required": ["sql"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "minify_sql",
+      "description": "Compress SQL to a single line by removing unnecessary whitespace and comments.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "description": "The SQL text to minify."
+          }
+        },
+        "required": ["sql"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "validate_sql",
+      "description": "Check SQL for syntax errors and warnings. Returns validity status and list of issues.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "sql": {
+            "type": "string",
+            "description": "The SQL text to validate."
+          },
+          "dialect": {
+            "type": "string",
+            "enum": ["generic", "postgresql", "mysql", "sqlite"],
+            "default": "generic",
+            "description": "SQL dialect for keyword recognition."
+          }
+        },
+        "required": ["sql"],
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "list_sql_dialects",
+      "description": "Return the list of supported SQL dialects.",
+      "inputSchema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    }
+  ]
+}

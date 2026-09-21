@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SQL Formatter Editor</title>
+<meta name="description" content="浏览器原生 SQL 格式化编辑器 — 格式化、压缩、校验 SQL 语句" />
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-secondary: #8b949e;
+    --accent: #58a6ff;
+    --accent-hover: #79c0ff;
+    --success: #3fb950;
+    --warning: #d29922;
+    --danger: #f85149;
+    --radius: 8px;
+    --font-mono: "SF Mono", "Fira Code", "Cascadia Code", "JetBrains Mono", monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans SC", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .app-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .app-header .logo {
+    font-size: 1.2rem;
+    font-weight: 800;
+    background: linear-gradient(135deg, #58a6ff 0%, #bc8cff 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .app-header .links { display: flex; gap: 16px; }
+  .app-header .links a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.85rem;
+  }
+  .app-header .links a:hover { color: var(--accent); }
+
+  /* Main layout */
+  .main-container {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Options sidebar */
+  .options-sidebar {
+    width: 260px;
+    min-width: 260px;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    padding: 20px 16px;
+    overflow-y: auto;
+    flex-shrink: 0;
+  }
+  .options-sidebar h3 {
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+  .option-group {
+    margin-bottom: 20px;
+  }
+  .option-group label {
+    display: block;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+  .option-group select,
+  .option-group input[type="number"] {
+    width: 100%;
+    padding: 8px 10px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.85rem;
+  }
+  .option-group select:focus,
+  .option-group input:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .option-group input[type="checkbox"] {
+    accent-color: var(--accent);
+  }
+  .checkbox-label {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-weight: 400 !important;
+  }
+
+  /* Content area */
+  .content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-width: 0;
+  }
+
+  /* Toolbar */
+  .toolbar {
+    display: flex;
+    gap: 8px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+    flex-shrink: 0;
+  }
+  button {
+    padding: 8px 20px;
+    border: none;
+    border-radius: var(--radius);
+    font-weight: 600;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background .2s, opacity .2s;
+    white-space: nowrap;
+  }
+  .btn-format { background: var(--accent); color: #fff; }
+  .btn-format:hover { background: var(--accent-hover); }
+  .btn-minify { background: #388bfd; color: #fff; }
+  .btn-minify:hover { opacity: 0.85; }
+  .btn-validate { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-validate:hover { background: #21262d; }
+  .btn-copy { background: var(--surface); color: var(--success); border: 1px solid var(--success); }
+  .btn-copy:hover { background: rgba(63,185,80,0.1); }
+  .btn-download { background: var(--surface); color: var(--accent); border: 1px solid var(--accent); }
+  .btn-download:hover { background: rgba(88,166,255,0.1); }
+  .btn-clear { background: var(--surface); color: var(--text-secondary); border: 1px solid var(--border); }
+  .btn-clear:hover { background: #21262d; }
+  .btn-example { background: var(--surface); color: var(--text-secondary); border: 1px dashed var(--border); font-size: 0.8rem; padding: 6px 12px; }
+  .btn-example:hover { background: #21262d; }
+
+  /* Editor panels */
+  .panels {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 16px 24px;
+    gap: 16px;
+  }
+  .panel {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+  .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .panel-header span {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .panel-header .char-count {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+  }
+  textarea, .output-box {
+    flex: 1;
+    width: 100%;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 16px;
+    font-family: var(--font-mono);
+    font-size: 0.88rem;
+    line-height: 1.55;
+    resize: none;
+    overflow: auto;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); }
+  .output-box {
+    white-space: pre-wrap;
+    word-break: break-all;
+    position: relative;
+  }
+
+  /* Validation banner */
+  .validation-banner {
+    margin: 0 24px;
+    padding: 10px 16px;
+    border-radius: var(--radius);
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  .validation-banner.ok {
+    background: rgba(63,185,80,0.12);
+    border: 1px solid rgba(63,185,80,0.35);
+    color: var(--success);
+  }
+  .validation-banner.warn {
+    background: rgba(210,153,34,0.12);
+    border: 1px solid rgba(210,153,34,0.35);
+    color: var(--warning);
+  }
+  .validation-banner.err {
+    background: rgba(248,81,73,0.12);
+    border: 1px solid rgba(248,81,73,0.35);
+    color: var(--danger);
+  }
+  .validation-banner .issue-list {
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+
+  /* Syntax highlighting */
+  .hl-kw { color: #ff7b72; font-weight: 600; }
+  .hl-id { color: #d2a8ff; }
+  .hl-str { color: #a5d6ff; }
+  .hl-num { color: #79c0ff; }
+  .hl-cmt { color: #8b949e; font-style: italic; }
+  .hl-op { color: #ffa657; }
+  .hl-fn { color: #d2a8ff; }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 24px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 600;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    z-index: 999;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.success { border-color: var(--success); color: var(--success); }
+  .toast.error { border-color: var(--danger); color: var(--danger); }
+
+  /* Keyboard shortcuts hint */
+  .kbd {
+    display: inline-block;
+    padding: 1px 6px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-family: var(--font-mono);
+    margin-left: 8px;
+    color: var(--text-secondary);
+  }
+
+  /* Responsive */
+  @media (max-width: 720px) {
+    .main-container { flex-direction: column; }
+    .options-sidebar {
+      width: 100%;
+      min-width: unset;
+      border-right: none;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 12px 16px;
+    }
+    .options-sidebar h3 { width: 100%; margin-bottom: 0; }
+    .option-group { margin-bottom: 0; flex: 1; min-width: 120px; }
+    .toolbar { justify-content: center; }
+    .panels { padding: 12px; }
+    textarea { min-height: 180px; }
+    .output-box { min-height: 120px; }
+  }
+</style>
+</head>
+<body>
+<header class="app-header">
+  <span class="logo">SQL Formatter</span>
+  <div class="links">
+    <a href="https://github.com/Tinkora/sql_formatter" target="_blank" rel="noopener">GitHub</a>
+    <a href="./" target="_blank">关于</a>
+  </div>
+</header>
+
+<div class="main-container">
+  <!-- Options Sidebar -->
+  <aside class="options-sidebar">
+    <h3>格式化选项</h3>
+    <div class="option-group">
+      <label for="opt-dialect">SQL 方言</label>
+      <select id="opt-dialect">
+        <option value="generic">通用 SQL</option>
+        <option value="postgresql">PostgreSQL</option>
+        <option value="mysql">MySQL</option>
+        <option value="sqlite">SQLite</option>
+      </select>
+    </div>
+    <div class="option-group">
+      <label for="opt-indent">缩进空格数</label>
+      <select id="opt-indent">
+        <option value="2">2 空格</option>
+        <option value="4" selected>4 空格</option>
+        <option value="8">8 空格</option>
+      </select>
+    </div>
+    <div class="option-group">
+      <label for="opt-case">关键字大小写</label>
+      <select id="opt-case">
+        <option value="upper" selected>大写 (UPPER)</option>
+        <option value="lower">小写 (lower)</option>
+        <option value="capitalize">首字母大写 (Capitalize)</option>
+      </select>
+    </div>
+    <div class="option-group">
+      <label class="checkbox-label">
+        <input type="checkbox" id="opt-comma-before" />
+        逗号前置 (leading comma)
+      </label>
+    </div>
+    <div class="option-group">
+      <label for="opt-blank-lines">语句间空行数</label>
+      <select id="opt-blank-lines">
+        <option value="0">0</option>
+        <option value="1" selected>1</option>
+        <option value="2">2</option>
+        <option value="3">3</option>
+        <option value="5">5</option>
+      </select>
+    </div>
+    <div class="option-group">
+      <label for="opt-max-width">最大行宽 (预留)</label>
+      <input type="number" id="opt-max-width" value="120" min="40" max="500" />
+    </div>
+  </aside>
+
+  <!-- Content -->
+  <div class="content-area">
+    <div class="toolbar">
+      <button class="btn-format" id="btn-format" title="Ctrl+Enter">🎨 格式化 <span class="kbd">⌘↵</span></button>
+      <button class="btn-minify" id="btn-minify">📦 压缩</button>
+      <button class="btn-validate" id="btn-validate">🔍 校验</button>
+      <button class="btn-copy" id="btn-copy">📋 复制结果</button>
+      <button class="btn-download" id="btn-download">💾 下载</button>
+      <button class="btn-clear" id="btn-clear">🗑️ 清空</button>
+      <button class="btn-example" id="btn-example-select">📄 加载复杂示例</button>
+      <button class="btn-example" id="btn-example-simple">📄 简单示例</button>
+    </div>
+
+    <div class="panels">
+      <div class="panel" style="flex:1;">
+        <div class="panel-header">
+          <span>输入 SQL</span>
+          <span class="char-count" id="input-count">0 字符</span>
+        </div>
+        <textarea id="input-sql" placeholder="在此粘贴你的 SQL 语句 ...
+支持多条语句、子查询、CTE、JOIN 等复杂 SQL"></textarea>
+      </div>
+      <div class="panel" style="flex:1;">
+        <div class="panel-header">
+          <span>格式化结果</span>
+          <span class="char-count" id="output-count">0 字符</span>
+        </div>
+        <div class="output-box" id="output-box"></div>
+      </div>
+    </div>
+
+    <div class="validation-banner" id="validation-banner" style="display:none;"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script type="module">
+  import init, { format, minify, validate, list_dialects } from './pkg/sql_formatter_web.js';
+
+  // Wait for WASM to initialise
+  await init();
+  console.log('SQL Formatter WASM loaded');
+
+  // DOM refs
+  const inputEl = document.getElementById('input-sql');
+  const outputEl = document.getElementById('output-box');
+  const inputCount = document.getElementById('input-count');
+  const outputCount = document.getElementById('output-count');
+  const validationBanner = document.getElementById('validation-banner');
+  const toastEl = document.getElementById('toast');
+
+  // Load saved preferences
+  function loadPrefs() {
+    const saved = localStorage.getItem('sql_formatter_prefs');
+    if (saved) {
+      try {
+        const p = JSON.parse(saved);
+        if (p.dialect) document.getElementById('opt-dialect').value = p.dialect;
+        if (p.indent) document.getElementById('opt-indent').value = p.indent;
+        if (p.keywordCase) document.getElementById('opt-case').value = p.keywordCase;
+        if (p.commaBefore !== undefined) document.getElementById('opt-comma-before').checked = p.commaBefore;
+        if (p.blankLines !== undefined) document.getElementById('opt-blank-lines').value = p.blankLines;
+        if (p.maxWidth) document.getElementById('opt-max-width').value = p.maxWidth;
+        if (p.input) inputEl.value = p.input;
+      } catch(e) {}
+    }
+  }
+
+  function savePrefs() {
+    const p = {
+      dialect: document.getElementById('opt-dialect').value,
+      indent: document.getElementById('opt-indent').value,
+      keywordCase: document.getElementById('opt-case').value,
+      commaBefore: document.getElementById('opt-comma-before').checked,
+      blankLines: document.getElementById('opt-blank-lines').value,
+      maxWidth: document.getElementById('opt-max-width').value,
+      input: inputEl.value,
+    };
+    localStorage.setItem('sql_formatter_prefs', JSON.stringify(p));
+  }
+
+  // Debounced save on input change
+  let saveTimeout;
+  inputEl.addEventListener('input', () => {
+    updateCharCount();
+    clearTimeout(saveTimeout);
+    saveTimeout = setTimeout(savePrefs, 500);
+  });
+
+  // Save on option change
+  document.querySelectorAll('.options-sidebar select, .options-sidebar input').forEach(el => {
+    el.addEventListener('change', savePrefs);
+  });
+
+  function getOptions() {
+    return {
+      dialect: document.getElementById('opt-dialect').value,
+      indentSize: parseInt(document.getElementById('opt-indent').value),
+      keywordCase: document.getElementById('opt-case').value,
+      commaBefore: document.getElementById('opt-comma-before').checked,
+      linesBetweenStatements: parseInt(document.getElementById('opt-blank-lines').value),
+      maxLineWidth: parseInt(document.getElementById('opt-max-width').value),
+    };
+  }
+
+  function updateCharCount() {
+    inputCount.textContent = inputEl.value.length + ' 字符';
+  }
+
+  function escapeHTML(str) {
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function highlightSQL(sql) {
+    if (!sql) return '';
+    let html = escapeHTML(sql);
+    // Keywords (must run before other replacements)
+    const kwPattern = /\b(ABORT|ACTION|ADD|AFTER|ALL|ALTER|ANALYZE|AND|ANY|AS|ASC|ATTACH|AUTOINCREMENT|BEFORE|BEGIN|BETWEEN|BIGINT|BINARY|BLOB|BOOLEAN|BY|CASCADE|CASE|CAST|CHAR|CHARACTER|CHECK|CLOB|COALESCE|COLLATE|COLUMN|COMMIT|CONCURRENTLY|CONFLICT|CONSTRAINT|COUNT|CREATE|CROSS|CURRENT|CURRENT_DATE|CURRENT_TIME|CURRENT_TIMESTAMP|DATABASE|DATE|DATETIME|DEC|DECIMAL|DECLARE|DEFAULT|DEFERRABLE|DEFERRED|DELETE|DESC|DETACH|DISTINCT|DO|DOUBLE|DROP|EACH|ELSE|END|ENUM|ESCAPE|EXCEPT|EXCLUDE|EXCLUSIVE|EXEC|EXECUTE|EXISTS|EXPLAIN|FETCH|FILTER|FIRST|FLOAT|FOLLOWING|FOR|FOREIGN|FROM|FULL|FUNCTION|GLOB|GRANT|GROUP|GROUPS|HAVING|IF|IGNORE|ILIKE|IMMEDIATE|IMMUTABLE|IN|INDEX|INNER|INSERT|INSTEAD|INT|INTEGER|INTERSECT|INTERVAL|INTO|IS|ISNULL|JOIN|JSON|JSONB|KEY|LANGUAGE|LAST|LATERAL|LEFT|LIKE|LIMIT|LOCK|MATCH|MATERIALIZED|MERGE|MINUS|NATURAL|NCHAR|NO|NOT|NOTHING|NOTNULL|NULL|NULLIF|NULLS|NUMERIC|OF|OFFSET|ON|OR|ORDER|OTHERS|OUTER|OVER|PARTITION|PLAN|PRAGMA|PRECEDING|PRECISION|PRIMARY|QUERY|RAISE|RANGE|REAL|RECURSIVE|REFERENCES|REFRESH|REGEXP|REINDEX|RELEASE|RENAME|REPLACE|RESTRICT|RETURNING|RETURNS|REVOKE|RIGHT|ROLLBACK|ROW|ROWS|SAVEPOINT|SELECT|SERIAL|SET|SIMILAR|SMALLINT|SOME|STABLE|STRICT|SUM|TABLE|TEMP|TEMPORARY|TEXT|THEN|TIES|TIME|TIMESTAMP|TIMESTAMPTZ|TO|TRANSACTION|TRIGGER|TRUNCATE|UNBOUNDED|UNION|UNIQUE|UNLOCK|UPDATE|USING|VACUUM|VALUES|VARBINARY|VARCHAR|VARYING|VIEW|VOLATILE|WHEN|WHERE|WINDOW|WITH|WITHOUT|XML|YEAR|ZONE)\b/gi;
+    html = html.replace(kwPattern, m => '<span class="hl-kw">' + m + '</span>');
+    // Strings
+    html = html.replace(/('(?:[^'\\]|\\.)*')/g, '<span class="hl-str">$1</span>');
+    // Numbers
+    html = html.replace(/\b(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|0x[0-9a-fA-F]+)\b/g, '<span class="hl-num">$1</span>');
+    // Line comments
+    html = html.replace(/(--[^\n]*)/g, '<span class="hl-cmt">$1</span>');
+    html = html.replace(/(#[^\n]*)/g, '<span class="hl-cmt">$1</span>');
+    // Block comments
+    html = html.replace(/(\/\*[\s\S]*?\*\/)/g, '<span class="hl-cmt">$1</span>');
+    return html;
+  }
+
+  function doFormat() {
+    const sql = inputEl.value.trim();
+    if (!sql) { showToast('请先输入 SQL 语句', 'error'); return; }
+    const opts = getOptions();
+    try {
+      const result = format(sql, opts.dialect, opts.indentSize, opts.keywordCase,
+        opts.commaBefore, opts.linesBetweenStatements, opts.maxLineWidth);
+      outputEl.innerHTML = highlightSQL(result);
+      outputCount.textContent = result.length + ' 字符';
+      doValidateSilent(sql);
+      savePrefs();
+    } catch (e) {
+      outputEl.innerHTML = '<span style="color:var(--danger)">格式化错误: ' + escapeHTML(e.message || String(e)) + '</span>';
+      outputCount.textContent = '0 字符';
+      showToast('格式化失败: ' + (e.message || '未知错误'), 'error');
+    }
+  }
+
+  function doMinify() {
+    const sql = inputEl.value.trim();
+    if (!sql) { showToast('请先输入 SQL 语句', 'error'); return; }
+    try {
+      const result = minify(sql);
+      outputEl.innerHTML = highlightSQL(result);
+      outputCount.textContent = result.length + ' 字符';
+      showToast('压缩完成', 'success');
+      savePrefs();
+    } catch (e) {
+      outputEl.innerHTML = '<span style="color:var(--danger)">压缩错误: ' + escapeHTML(e.message || String(e)) + '</span>';
+      outputCount.textContent = '0 字符';
+      showToast('压缩失败: ' + (e.message || '未知错误'), 'error');
+    }
+  }
+
+  function doValidate() {
+    const sql = inputEl.value.trim();
+    if (!sql) { showToast('请先输入 SQL 语句', 'error'); return; }
+    const dialect = document.getElementById('opt-dialect').value;
+    try {
+      const resultJson = validate(sql, dialect);
+      const result = JSON.parse(resultJson);
+      showValidationBanner(result);
+      if (result.valid) {
+        showToast('✅ 语法校验通过', 'success');
+      } else {
+        showToast('⚠️ 发现 ' + result.issues.length + ' 个问题', 'error');
+      }
+    } catch (e) {
+      showValidationBanner({ valid: false, issues: ['校验失败: ' + (e.message || String(e))] });
+      showToast('校验失败', 'error');
+    }
+  }
+
+  function doValidateSilent(sql) {
+    const dialect = document.getElementById('opt-dialect').value;
+    try {
+      const resultJson = validate(sql, dialect);
+      const result = JSON.parse(resultJson);
+      showValidationBanner(result);
+    } catch (e) {
+      validationBanner.style.display = 'none';
+    }
+  }
+
+  function showValidationBanner(result) {
+    const banner = validationBanner;
+    banner.style.display = 'block';
+    if (result.valid && result.issues.length === 0) {
+      banner.className = 'validation-banner ok';
+      banner.innerHTML = '✅ 语法校验通过 — 未发现问题';
+    } else if (result.valid && result.issues.length > 0) {
+      banner.className = 'validation-banner warn';
+      banner.innerHTML = '⚠️ 语法校验通过但有警告：<div class="issue-list">' +
+        result.issues.map(i => '• ' + escapeHTML(i)).join('<br>') + '</div>';
+    } else {
+      banner.className = 'validation-banner err';
+      banner.innerHTML = '❌ 语法校验发现问题：<div class="issue-list">' +
+        result.issues.map(i => '• ' + escapeHTML(i)).join('<br>') + '</div>';
+    }
+  }
+
+  function doCopy() {
+    const text = outputEl.textContent;
+    if (!text.trim()) { showToast('没有可复制的内容', 'error'); return; }
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('✅ 已复制到剪贴板', 'success');
+    }).catch(() => {
+      showToast('复制失败，请手动选择复制', 'error');
+    });
+  }
+
+  function doDownload() {
+    const text = outputEl.textContent;
+    if (!text.trim()) { showToast('没有可下载的内容', 'error'); return; }
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'formatted_sql.txt';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('💾 已下载 formatted_sql.txt', 'success');
+  }
+
+  function doClear() {
+    inputEl.value = '';
+    outputEl.innerHTML = '';
+    inputCount.textContent = '0 字符';
+    outputCount.textContent = '0 字符';
+    validationBanner.style.display = 'none';
+    showToast('已清空', 'success');
+  }
+
+  function loadSimpleExample() {
+    inputEl.value = "SELECT id, name, email, created_at FROM users WHERE active = 1 ORDER BY created_at DESC LIMIT 10";
+    updateCharCount();
+    doFormat();
+    showToast('已加载简单示例', 'success');
+  }
+
+  function loadComplexExample() {
+    inputEl.value = `WITH monthly_sales AS (
+  SELECT
+    user_id,
+    DATE_TRUNC('month', order_date) AS month,
+    SUM(amount) AS total_amount,
+    COUNT(*) AS order_count
+  FROM orders
+  WHERE status = 'completed'
+    AND order_date >= '2025-01-01'
+  GROUP BY user_id, DATE_TRUNC('month', order_date)
+),
+user_ranks AS (
+  SELECT
+    u.id,
+    u.name,
+    u.email,
+    u.created_at,
+    ms.month,
+    ms.total_amount,
+    ms.order_count,
+    ROW_NUMBER() OVER (
+      PARTITION BY ms.month
+      ORDER BY ms.total_amount DESC
+    ) AS rank_in_month
+  FROM users u
+  INNER JOIN monthly_sales ms ON u.id = ms.user_id
+  WHERE u.active = TRUE
+)
+SELECT
+  id,
+  name,
+  email,
+  month,
+  total_amount,
+  order_count,
+  rank_in_month
+FROM user_ranks
+WHERE rank_in_month <= 10
+ORDER BY month DESC, rank_in_month ASC;`;
+    updateCharCount();
+    doFormat();
+    showToast('已加载复杂示例', 'success');
+  }
+
+  function showToast(msg, type) {
+    const toast = toastEl;
+    toast.textContent = msg;
+    toast.className = 'toast ' + type + ' show';
+    clearTimeout(toast._timeout);
+    toast._timeout = setTimeout(() => {
+      toast.className = 'toast';
+    }, 2500);
+  }
+
+  // Event listeners
+  document.getElementById('btn-format').addEventListener('click', doFormat);
+  document.getElementById('btn-minify').addEventListener('click', doMinify);
+  document.getElementById('btn-validate').addEventListener('click', doValidate);
+  document.getElementById('btn-copy').addEventListener('click', doCopy);
+  document.getElementById('btn-download').addEventListener('click', doDownload);
+  document.getElementById('btn-clear').addEventListener('click', doClear);
+  document.getElementById('btn-example-select').addEventListener('click', loadSimpleExample);
+  document.getElementById('btn-example-simple').addEventListener('click', loadComplexExample);
+
+  // Keyboard shortcut: Ctrl+Enter / Cmd+Enter to format
+  document.addEventListener('keydown', (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+      e.preventDefault();
+      doFormat();
+    }
+  });
+
+  // Focus input on load
+  inputEl.focus();
+
+  // Load preferences and do initial format if there's saved input
+  loadPrefs();
+  updateCharCount();
+  if (inputEl.value.trim()) {
+    doFormat();
+  }
+</script>
+<footer style="padding:10px 16px;text-align:center;color:var(--text-muted, #94a3b8);font-size:12px;line-height:1.4;flex:0 0 auto;">sql_formatter by Tinkora</footer>
+</body>
+</html>
